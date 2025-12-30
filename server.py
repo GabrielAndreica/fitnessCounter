@@ -1,30 +1,59 @@
-from flask import Flask, request, jsonify
+from flask import Flask, jsonify
 from flask_cors import CORS
-from datetime import datetime
+from sensor_simulator import generate_sensor_data
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app)
 
-data_store = []
+history = []
+reps = 0
+state = "UP"  # UP sau DOWN
 
-@app.route("/update", methods=['POST'])
-def update():
-    content = request.get_json()
-    reps = content.get("reps", None)
-    if reps is None:
-        return jsonify({"error": "Missing reps"}), 400
+LOW_THRESHOLD = 35  # cm (jos)
+HIGH_THRESHOLD = 60  # cm (sus)
 
-    entry = {
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+@app.route("/simulate", methods=["POST"])
+def simulate_sensor():
+    global reps, state
+
+    data = generate_sensor_data()
+    distance = data["distance"]
+    speed = data["speed"]
+
+    valid_repetition = False
+
+    # logica detectie repetare
+    if state == "UP" and distance < LOW_THRESHOLD:
+        state = "DOWN"
+
+    elif state == "DOWN" and distance > HIGH_THRESHOLD:
+        reps += 1
+        state = "UP"
+        valid_repetition = True
+
+    # salvam toate citirile, nu doar cele valide
+    history.append({
+        "timestamp": data["timestamp"],
+        "distance": distance,
+        "speed": speed,
+        "valid": valid_repetition,
+        "total_reps": reps
+    })
+
+    return jsonify({
+        "sensor_data": data,
+        "state": state,
         "reps": reps
-    }
+    })
 
-    data_store.append(entry)
-    return jsonify({"message": "added", "entry": entry})
 
-@app.route("/data", methods=['GET'])
-def data():
-    return jsonify(data_store)
+@app.route("/data", methods=["GET"])
+def get_data():
+    return jsonify({
+        "total_reps": reps,
+        "history": history
+    })
+
 
 if __name__ == "__main__":
-    app.run(port=5000, host="0.0.0.0", debug=True)
+    app.run(port=5000, debug=True)
