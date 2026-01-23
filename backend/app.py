@@ -4,6 +4,8 @@ from db import init_db, get_db_connection
 from auth import auth_bp
 from sensor_simulator import simulate_reading
 from fitness_logic import is_repetition_valid
+from mqtt_listener import start_mqtt_listener
+
 
 import time
 
@@ -13,6 +15,7 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 
 # Initializare DB
 init_db()
+start_mqtt_listener()
 
 # Register/Login
 app.register_blueprint(auth_bp, url_prefix="/auth")
